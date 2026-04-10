@@ -236,5 +236,3 @@ will scale automatically.
 - [Xilinx PG203](https://www.xilinx.com/support/documentation/ip_documentation/cmac_usplus/v3_1/pg203-cmac-usplus.pdf) - UltraScale+ CMAC Hard IP
 
 ---
-
-*Author: Varrahan Uthayan*

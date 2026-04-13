@@ -62,9 +62,7 @@ reg        meta_latched;
 reg [15:0] new_dst_ip_hi;
 
 // s_tready: stall if we don't have meta yet at the start of a packet
-assign s_tready = (!s_tvalid) ? 1'b1 :
-                  (!in_packet && !meta_valid) ? 1'b0 :
-                  m_tready;
+assign s_tready = (!s_tvalid) ? 1'b1 : (!in_packet && !meta_valid) ? 1'b0 : m_tready;
 
 wire beat_fire = s_tvalid && s_tready;
 

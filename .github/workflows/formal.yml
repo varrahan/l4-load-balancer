@@ -25,11 +25,6 @@ jobs:
           yosys --version
           yices-smt2 --version || yices --version || true
 
-      - name: Debug sby files
-        run: |
-          echo "=== sync_fifo.sby ===" && cat formal/sync_fifo/sync_fifo.sby
-          echo "=== commit ===" && git log -1 --oneline
-
       - name: Run sync_fifo formal
         run: sby -f formal/sync_fifo/sync_fifo.sby
         working-directory: ${{ github.workspace }}

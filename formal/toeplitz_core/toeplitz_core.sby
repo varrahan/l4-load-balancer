@@ -6,8 +6,8 @@ depth 16
 smtbmc yices
 
 [script]
-read -formal toeplitz_core.v
-read -formal toeplitz_core_props.sv
+read_verilog -formal toeplitz_core.v
+read_verilog -sv -formal toeplitz_core_props.sv
 prep -top toeplitz_core_props
 
 [files]

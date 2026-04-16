@@ -6,8 +6,8 @@ depth 32
 smtbmc yices
 
 [script]
-read -formal token_bucket_limiter.v
-read -formal token_bucket_limiter_props.sv
+read_verilog -formal token_bucket_limiter.v
+read_verilog -sv -formal token_bucket_limiter_props.sv
 prep -top token_bucket_limiter_props
 
 [files]

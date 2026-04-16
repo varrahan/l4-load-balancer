@@ -6,8 +6,8 @@ depth 20
 smtbmc yices
 
 [script]
-read -formal header_modifier.v
-read -formal header_modifier_props.sv
+read_verilog -formal header_modifier.v
+read_verilog -sv -formal header_modifier_props.sv
 prep -top header_modifier_props
 
 [files]

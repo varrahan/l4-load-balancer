@@ -6,8 +6,8 @@ depth 12
 smtbmc yices
 
 [script]
-read -formal fib_bram_controller.v
-read -formal fib_bram_controller_props.sv
+read_verilog -formal fib_bram_controller.v
+read_verilog -sv -formal fib_bram_controller_props.sv
 prep -top fib_bram_controller_props
 
 [files]

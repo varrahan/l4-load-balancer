@@ -6,8 +6,8 @@ depth 20
 smtbmc yices
 
 [script]
-read -formal meta_fifo.v
-read -formal meta_fifo_props.sv
+read_verilog -formal meta_fifo.v
+read_verilog -sv -formal meta_fifo_props.sv
 prep -top meta_fifo_props
 
 [files]

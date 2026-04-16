@@ -6,8 +6,8 @@ depth 12
 smtbmc yices
 
 [script]
-read -formal tuple_extractor.v
-read -formal tuple_extractor_props.sv
+read_verilog -formal tuple_extractor.v
+read_verilog -sv -formal tuple_extractor_props.sv
 prep -top tuple_extractor_props
 
 [files]

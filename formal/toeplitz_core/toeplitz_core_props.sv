@@ -1,4 +1,4 @@
-default_nettype none
+`default_nettype none
 module toeplitz_core_props (
     input wire clk, input wire rst_n,
     input wire [31:0] src_ip, input wire [31:0] dst_ip,

@@ -36,7 +36,11 @@ always @(*) begin
     if (!f_past_valid) assume(!rst_n);
 end
 
-wire fpv_stable = f_past_valid && rst_n && $past(rst_n);
+reg fpv_stable;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) fpv_stable <= 1'b0;
+    else        fpv_stable <= f_past_valid;
+end
 
 always @(posedge clk) begin
     if (!rst_n) begin assert(!tuple_valid); assert(!bypass); end

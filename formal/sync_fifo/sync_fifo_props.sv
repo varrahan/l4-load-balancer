@@ -35,6 +35,9 @@ sync_fifo #(
     .full   (full)
 );
 
+// Abbreviation: both this cycle and last cycle were out of reset
+wire stable = rst_n && $past(rst_n);
+
 // 1. Reset: empty asserted, full and valid deasserted
 always @(posedge clk) begin
     if (!rst_n) begin
@@ -44,15 +47,15 @@ always @(posedge clk) begin
     end
 end
 
-// 2. No overflow: write into full FIFO leaves it full
+// 2. No overflow: write into full FIFO with no concurrent read leaves it full
 always @(posedge clk) begin
-    if (rst_n && $past(full) && $past(wr_en) && !$past(rd_en))
+    if (stable && $past(full) && $past(wr_en) && !$past(rd_en))
         assert(full);
 end
 
-// 3. No underflow: read from empty FIFO leaves it empty
+// 3. No underflow: read from empty FIFO with no concurrent write leaves it empty
 always @(posedge clk) begin
-    if (rst_n && $past(empty) && $past(rd_en) && !$past(wr_en))
+    if (stable && $past(empty) && $past(rd_en) && !$past(wr_en))
         assert(empty);
 end
 
@@ -64,19 +67,19 @@ end
 
 // 5. valid only asserted the cycle after rd_en fired
 always @(posedge clk) begin
-    if (rst_n && !$past(rd_en))
+    if (stable && !$past(rd_en))
         assert(!valid);
 end
 
 // 6. Once full, stays full unless a read occurs
 always @(posedge clk) begin
-    if (rst_n && $past(full) && !$past(rd_en))
+    if (stable && $past(full) && !$past(rd_en))
         assert(full);
 end
 
 // 7. Once empty, stays empty unless a write occurs
 always @(posedge clk) begin
-    if (rst_n && $past(empty) && !$past(wr_en))
+    if (stable && $past(empty) && !$past(wr_en))
         assert(empty);
 end
 
@@ -92,7 +95,7 @@ end
 
 // Cover: full then empty (fill and drain)
 always @(posedge clk) begin
-    if (rst_n) cover($past(full) && empty);
+    if (stable) cover($past(full) && empty);
 end
 
 endmodule

@@ -25,12 +25,10 @@ jobs:
           yosys --version
           yices-smt2 --version || yices --version || true
           
-      - name: Debug props file
+      - name: Debug
         run: |
-          echo "=== sync_fifo_props.sv ===" 
-          cat formal/sync_fifo/sync_fifo_props.sv
-          echo "=== sync_fifo.sby ==="
-          cat formal/sync_fifo/sync_fifo.sby
+          head -5 formal/fib_bram_controller/fib_bram_controller.sby
+          grep "fpv4\|fpv3\|fpv2" formal/fib_bram_controller/fib_bram_controller_props.sv | head -5
 
       - name: Run sync_fifo formal
         run: sby -f formal/sync_fifo/sync_fifo.sby

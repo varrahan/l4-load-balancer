@@ -3,15 +3,8 @@ name: Formal Verification
 on:
   push:
     branches: [ "main", "master" ]
-    paths:
-      - 'rtl/**'
-      - 'formal/**'
   pull_request:
     branches: [ "main", "master" ]
-    paths:
-      - 'rtl/**'
-      - 'formal/**'
-
 jobs:
   formal:
     name: SymbiYosys BMC

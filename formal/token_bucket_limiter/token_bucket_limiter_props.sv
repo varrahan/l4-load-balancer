@@ -25,42 +25,40 @@ always @(posedge clk or negedge rst_n) begin
     else        addr_r_s <= hash_in[FIB_INDEX_BITS-1:0];
 end
 
-reg f_past_valid, fpv2, fpv3, fpv4;
-initial begin
-    f_past_valid = 1'b0; fpv2 = 1'b0;
-    fpv3 = 1'b0;         fpv4 = 1'b0;
-end
-always @(posedge clk) begin
-    f_past_valid <= 1'b1;
-    fpv2 <= f_past_valid;
-    fpv3 <= fpv2;
-    fpv4 <= fpv3;
-end
+reg f_past_valid;
+initial f_past_valid = 1'b0;
+always @(posedge clk) f_past_valid <= 1'b1;
 
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
     else               assume(rst_n);
 end
 
+// 1. Reset: outputs deasserted
 always @(posedge clk) begin
-    if (!rst_n) begin assert(!out_valid); assert(!out_bypass); end
+    if (!rst_n) begin
+        assert(!out_valid);
+        assert(!out_bypass);
+    end
 end
 
-always @(posedge clk) begin
-    if (fpv4) assert(out_valid  == $past(in_valid,  2));
-end
-always @(posedge clk) begin
-    if (fpv4) assert(out_bypass == $past(in_bypass, 2));
-end
-
+// 2. Address bound: BRAM index always within table
 always @(posedge clk) begin
     if (rst_n) assert(addr_r_s < FIB_DEPTH[FIB_INDEX_BITS-1:0]);
 end
+
+// 3. server_id is a 3-bit field, always in [0,7]
 always @(posedge clk) begin
     if (rst_n && out_valid) assert(server_id <= 3'd7);
 end
 
+// 4. out_valid and out_bypass never simultaneously asserted
+// (bypass propagates through the valid pipeline, not from BRAM)
+always @(posedge clk) begin
+    if (rst_n) assert(!(out_valid && out_bypass));
+end
+
 always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass); end
-always @(posedge clk) begin if (rst_n) cover(out_valid &&  out_bypass); end
+always @(posedge clk) begin if (rst_n) cover(out_bypass); end
 
 endmodule

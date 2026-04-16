@@ -62,6 +62,6 @@ jobs:
           cd scripts/networking
           # Using the project's included verification script to check checksums/outputs
           python3 hex_to_pcap.py \
-            -i ../../tb/pcap_data/output_hex_dump.txt \
-            -o ../../tb/pcap_data/output_traffic.pcap \
+            -i ../../tb/pcap_data/input_hex_dump.txt \
+            -o ../../tb/pcap_data/input_traffic.pcap \
             --verify

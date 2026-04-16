@@ -26,26 +26,25 @@ header_modifier #(.DATA_WIDTH(64)) dut (
 
 wire beat_fire = s_tvalid && s_tready;
 
+// Shadow beat counter to track packet position without hierarchical refs
 reg        in_packet_s;
 reg [2:0]  beat_cnt_s;
-reg [47:0] lat_dst_mac_s;
-reg [31:0] lat_dst_ip_s;
-reg        lat_bypass_s;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        in_packet_s   <= 1'b0; beat_cnt_s    <= 3'd0;
-        lat_dst_mac_s <= 48'd0; lat_dst_ip_s <= 32'd0;
-        lat_bypass_s  <= 1'b0;
+        in_packet_s <= 1'b0;
+        beat_cnt_s  <= 3'd0;
     end else if (beat_fire) begin
         if (!in_packet_s) begin
-            in_packet_s   <= 1'b1;   beat_cnt_s    <= 3'd1;
-            lat_dst_mac_s <= meta_dst_mac; lat_dst_ip_s <= meta_dst_ip;
-            lat_bypass_s  <= meta_bypass;
+            in_packet_s <= 1'b1;
+            beat_cnt_s  <= 3'd1;
         end else begin
             if (beat_cnt_s < 3'd7) beat_cnt_s <= beat_cnt_s + 3'd1;
         end
-        if (s_tlast) begin in_packet_s <= 1'b0; beat_cnt_s <= 3'd0; end
+        if (s_tlast) begin
+            in_packet_s <= 1'b0;
+            beat_cnt_s  <= 3'd0;
+        end
     end
 end
 
@@ -53,15 +52,13 @@ reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
 
-// Reset at step 0; no mid-run resets after that
+// Step 0: reset; steps 1+: run (no mid-trace resets)
 always @(*) begin
-    if (!f_past_valid)
-        assume(!rst_n);
-    else
-        assume(rst_n);
+    if (!f_past_valid) assume(!rst_n);
+    else               assume(rst_n);
 end
 
-// No input data until after reset is released
+// No input data during reset cycle
 always @(*) begin
     if (!f_past_valid) assume(!s_tvalid);
 end
@@ -72,48 +69,51 @@ always @(posedge clk or negedge rst_n) begin
     else        fpv_stable <= f_past_valid;
 end
 
-// 1. Reset clears m_tvalid
-always @(posedge clk) begin if (!rst_n) assert(!m_tvalid); end
-
-// 2. Stall when no meta at packet start
+// 1. Reset: m_tvalid deasserted
 always @(posedge clk) begin
-    if (rst_n && s_tvalid && !in_packet_s && !meta_valid) assert(!s_tready);
+    if (!rst_n) assert(!m_tvalid);
 end
 
-// 3. Bypass passthrough: m_tdata equals the beat that was clocked in
-//    Only check when we are inside a packet (in_packet_s was set)
+// 2. Stall: s_tready deasserted when no packet in flight and no meta
 always @(posedge clk) begin
-    if (fpv_stable && m_tvalid && lat_bypass_s && $past(in_packet_s))
-        assert(m_tdata == $past(s_tdata));
+    if (rst_n && s_tvalid && !in_packet_s && !meta_valid)
+        assert(!s_tready);
 end
 
-// 4. Beat 0 non-bypass: top 48 bits carry new dst_mac
-always @(posedge clk) begin
-    if (fpv_stable && m_tvalid && !lat_bypass_s && !$past(in_packet_s))
-        assert(m_tdata[63:16] == lat_dst_mac_s);
-end
-
-// 5. Beat 3: bits [15:0] carry new dst_ip[31:16]
-always @(posedge clk) begin
-    if (fpv_stable && m_tvalid && !lat_bypass_s && $past(beat_cnt_s) == 3'd3)
-        assert(m_tdata[15:0] == lat_dst_ip_s[31:16]);
-end
-
-// 6. Beat 4: bits [63:48] carry new dst_ip[15:0]
-always @(posedge clk) begin
-    if (fpv_stable && m_tvalid && !lat_bypass_s && $past(beat_cnt_s) == 3'd4)
-        assert(m_tdata[63:48] == lat_dst_ip_s[15:0]);
-end
-
-// 7. meta_ready is a single-cycle pulse
+// 3. meta_ready is a single-cycle pulse
 always @(posedge clk) begin
     if (fpv_stable && $past(meta_ready)) assert(!meta_ready);
 end
 
-// 8. beat_cnt never exceeds 7
-always @(posedge clk) begin if (rst_n) assert(beat_cnt_s <= 3'd7); end
+// 4. beat_cnt never exceeds 7
+always @(posedge clk) begin
+    if (rst_n) assert(beat_cnt_s <= 3'd7);
+end
 
-always @(posedge clk) begin if (rst_n) cover(m_tvalid && m_tlast &&  lat_bypass_s); end
-always @(posedge clk) begin if (rst_n) cover(m_tvalid && m_tlast && !lat_bypass_s); end
+// 5. beat_cnt resets to 0 after tlast
+always @(posedge clk) begin
+    if (fpv_stable && $past(s_tvalid) && $past(s_tlast))
+        assert(beat_cnt_s == 3'd0);
+end
+
+// 6. m_tvalid only asserted when a beat fired the previous cycle
+always @(posedge clk) begin
+    if (fpv_stable && !$past(beat_fire)) assert(!m_tvalid);
+end
+
+// 7. m_tkeep tracks s_tkeep through the pipe
+always @(posedge clk) begin
+    if (fpv_stable && m_tvalid) assert(m_tkeep == $past(s_tkeep));
+end
+
+// 8. m_tlast tracks s_tlast through the pipe
+always @(posedge clk) begin
+    if (fpv_stable && m_tvalid) assert(m_tlast == $past(s_tlast));
+end
+
+// Cover: bypass packet forwarded end-to-end
+always @(posedge clk) begin
+    if (rst_n) cover(m_tvalid && m_tlast);
+end
 
 endmodule

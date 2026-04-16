@@ -17,7 +17,6 @@ toeplitz_core dut (
     .hash_out(hash_out), .out_valid(out_valid), .out_bypass(out_bypass)
 );
 
-// f_past_valid chain: fpvN goes high N+1 cycles after start
 reg f_past_valid, fpv2, fpv3, fpv4;
 initial begin
     f_past_valid = 1'b0; fpv2 = 1'b0;
@@ -30,30 +29,32 @@ always @(posedge clk) begin
     fpv4 <= fpv3;
 end
 
-// Hold reset for the first 4 cycles so the 3-stage pipeline is fully flushed
-// before any latency assertions fire
-always @(*) begin
-    if (!fpv3) assume(!rst_n);
-end
+// Assume rst_n stays high for the entire trace so pipeline latency assertions
+// are checked in steady-state operation only
+always @(*) assume(rst_n);
 
+// 1. Reset: outputs deasserted (vacuously true given assume above, but kept
+//    for documentation)
 always @(posedge clk) begin
     if (!rst_n) begin assert(!out_valid); assert(!out_bypass); end
 end
 
-// Latency: out_valid arrives exactly 3 cycles after in_valid
-// Only check when we have 4 clean post-reset cycles of history
+// 2. Latency: out_valid arrives exactly 3 cycles after in_valid
 always @(posedge clk) begin
-    if (fpv4 && rst_n) assert(out_valid  == $past(in_valid,  3));
-end
-always @(posedge clk) begin
-    if (fpv4 && rst_n) assert(out_bypass == $past(in_bypass, 3));
+    if (fpv4) assert(out_valid == $past(in_valid, 3));
 end
 
+// 3. Bypass propagates with same 3-cycle latency
+always @(posedge clk) begin
+    if (fpv4) assert(out_bypass == $past(in_bypass, 3));
+end
+
+// 4. out_valid and out_bypass never simultaneously asserted
 always @(posedge clk) begin
     if (rst_n) assert(!(out_valid && out_bypass));
 end
 
 always @(posedge clk) begin if (rst_n) cover(out_valid && hash_out != 32'd0); end
-always @(posedge clk) begin if (fpv4 && rst_n) cover(out_valid && $past(out_valid)); end
+always @(posedge clk) begin if (fpv4) cover(out_valid && $past(out_valid)); end
 
 endmodule

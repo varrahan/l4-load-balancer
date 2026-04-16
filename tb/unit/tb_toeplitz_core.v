@@ -61,20 +61,21 @@ task drive_tuple;
 endtask
 
 // Wait for out_valid with timeout
-function automatic [31:0] wait_hash;
-    input integer timeout;
+task automatic wait_hash;
+    input  integer timeout;
+    output [31:0]  result;
     integer i;
     begin
-        wait_hash = 32'hDEAD_BEEF;
+        result = 32'hDEAD_BEEF;
         for (i = 0; i < timeout; i = i + 1) begin
             @(posedge clk);
             if (out_valid) begin
-                wait_hash = hash_out;
-                i = timeout; // break
+                result = hash_out;
+                i = timeout; // Force loop exit
             end
         end
     end
-endfunction
+endtask
 
 reg [31:0] hash_a, hash_b;
 integer wait_i;

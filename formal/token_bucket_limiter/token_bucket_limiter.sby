@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 32
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal rtl/forwarding/token_bucket_limiter.v
+read -formal formal/token_bucket_limiter/token_bucket_limiter_props.sv
+prep -top token_bucket_limiter_props
+
+[files]
+rtl/forwarding/token_bucket_limiter.v
+formal/token_bucket_limiter/token_bucket_limiter_props.sv

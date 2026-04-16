@@ -17,7 +17,7 @@ jobs:
       - name: Setup OSS CAD Suite
         uses: YosysHQ/setup-oss-cad-suite@v3
         with:
-          version: '2024-01-01' # You can also change this to 'latest'
+          version: '2024-01-01'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify toolchain

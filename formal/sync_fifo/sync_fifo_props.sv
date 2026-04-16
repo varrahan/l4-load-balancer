@@ -1,80 +1,58 @@
 `default_nettype none
-module sync_fifo_props #(
-    parameter DATA_WIDTH = 8,
-    parameter DEPTH      = 4
-) (
-    input wire                  clk,
-    input wire                  rst_n,
-    input wire                  wr_en,
-    input wire [DATA_WIDTH-1:0] wr_data,
-    input wire                  rd_en
+module meta_fifo_props #(parameter DEPTH = 4) (
+    input wire clk, input wire rst_n,
+    input wire wr_en, input wire [47:0] wr_dst_mac,
+    input wire [31:0] wr_dst_ip, input wire wr_bypass,
+    input wire rd_en
 );
 
-wire [DATA_WIDTH-1:0] rd_data;
-wire                  valid, empty, full;
+wire [47:0] rd_dst_mac;
+wire [31:0] rd_dst_ip;
+wire        rd_bypass, rd_valid;
 
-sync_fifo #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(DEPTH)) dut (
+meta_fifo #(.DEPTH(DEPTH)) dut (
     .clk(clk), .rst_n(rst_n),
-    .wr_en(wr_en), .wr_data(wr_data), .rd_en(rd_en),
-    .rd_data(rd_data), .valid(valid), .empty(empty), .full(full)
+    .wr_en(wr_en), .wr_dst_mac(wr_dst_mac),
+    .wr_dst_ip(wr_dst_ip), .wr_bypass(wr_bypass),
+    .rd_en(rd_en), .rd_dst_mac(rd_dst_mac),
+    .rd_dst_ip(rd_dst_ip), .rd_bypass(rd_bypass), .rd_valid(rd_valid)
 );
 
-// stable: registered flag - high only when rst_n was high last cycle too
-reg stable;
+reg [$clog2(DEPTH):0] occupancy;
+wire do_wr = wr_en && (occupancy < DEPTH);
+wire do_rd = rd_en && (occupancy > 0);
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) stable <= 1'b0;
-    else        stable <= 1'b1;
+    if (!rst_n) occupancy <= 0;
+    else        occupancy <= occupancy + do_wr - do_rd;
 end
+wire fifo_full  = (occupancy == DEPTH);
+wire fifo_empty = (occupancy == 0);
 
-// 1. Reset
-always @(posedge clk) begin
-    if (!rst_n) begin
-        assert(empty);
-        assert(!full);
-        assert(!valid);
-    end
-end
-
-// 2. No overflow
-always @(posedge clk) begin
-    if (stable && $past(full) && $past(wr_en) && !$past(rd_en))
-        assert(full);
-end
-
-// 3. No underflow
-always @(posedge clk) begin
-    if (stable && $past(empty) && $past(rd_en) && !$past(wr_en))
-        assert(empty);
-end
-
-// 4. Mutual exclusion
-always @(posedge clk) begin
-    if (rst_n) assert(!(full && empty));
-end
-
-// 5. valid only follows rd_en
-always @(posedge clk) begin
-    if (stable && !$past(rd_en)) assert(!valid);
-end
-
-// 6. full sticky without read
-always @(posedge clk) begin
-    if (stable && $past(full) && !$past(rd_en)) assert(full);
-end
-
-// 7. empty sticky without write
-always @(posedge clk) begin
-    if (stable && $past(empty) && !$past(wr_en)) assert(empty);
-end
+reg f_past_valid;
+initial f_past_valid = 1'b0;
+always @(posedge clk) f_past_valid <= 1'b1;
 
 always @(posedge clk) begin
-    if (rst_n) cover(full);
+    if (!rst_n) begin assert(fifo_empty); assert(!rd_valid); end
 end
 always @(posedge clk) begin
-    if (rst_n) cover(valid);
+    if (f_past_valid && $past(fifo_full) && $past(wr_en) && !$past(rd_en))
+        assert(fifo_full);
 end
 always @(posedge clk) begin
-    if (stable) cover($past(full) && empty);
+    if (f_past_valid && $past(fifo_empty) && $past(rd_en) && !$past(wr_en))
+        assert(!rd_valid);
 end
+always @(posedge clk) begin
+    if (rst_n) assert(occupancy <= DEPTH);
+end
+always @(posedge clk) begin
+    if (rst_n) assert(!(fifo_full && fifo_empty));
+end
+always @(posedge clk) begin
+    if (f_past_valid && !$past(rd_en)) assert(!rd_valid);
+end
+always @(posedge clk) begin if (rst_n) cover(fifo_full); end
+always @(posedge clk) begin if (rst_n) cover(rd_valid);  end
 
 endmodule

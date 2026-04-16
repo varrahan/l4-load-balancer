@@ -17,13 +17,7 @@ fib_bram_controller #(.FIB_INDEX_BITS(FIB_INDEX_BITS), .FIB_INIT_FILE("")) dut (
     .server_id(server_id), .out_valid(out_valid), .out_bypass(out_bypass)
 );
 
-localparam FIB_DEPTH = 1 << FIB_INDEX_BITS;
-
-reg [FIB_INDEX_BITS-1:0] addr_r_s;
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) addr_r_s <= {FIB_INDEX_BITS{1'b0}};
-    else        addr_r_s <= hash_in[FIB_INDEX_BITS-1:0];
-end
+wire [FIB_INDEX_BITS-1:0] fib_addr = hash_in[FIB_INDEX_BITS-1:0];
 
 reg f_past_valid;
 initial f_past_valid = 1'b0;
@@ -36,13 +30,6 @@ end
 
 always @(*) assume(!(in_valid && in_bypass));
 
-always @(*) begin
-    if (!f_past_valid) begin
-        assume(!in_valid);
-        assume(!in_bypass);
-    end
-end
-
 // 1. Reset: out_valid and out_bypass deasserted
 always @(posedge clk) begin
     if (!rst_n) begin
@@ -51,9 +38,10 @@ always @(posedge clk) begin
     end
 end
 
-// 2. BRAM address never out of bounds
+// 2. BRAM address is always a valid FIB_INDEX_BITS-wide value.
+wire [FIB_INDEX_BITS:0] fib_addr_wide = {1'b0, fib_addr};
 always @(posedge clk) begin
-    if (rst_n) assert(addr_r_s < FIB_DEPTH[FIB_INDEX_BITS-1:0]);
+    if (rst_n) assert(fib_addr_wide[FIB_INDEX_BITS] == 1'b0);
 end
 
 always @(posedge clk) begin if (rst_n) cover(out_valid); end

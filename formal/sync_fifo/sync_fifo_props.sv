@@ -1,4 +1,4 @@
-`default_nettype none
+default_nettype none
 module sync_fifo_props #(
     parameter DATA_WIDTH = 8,
     parameter DEPTH      = 4
@@ -23,12 +23,12 @@ reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
 
-// Force reset at step 0 so the DUT always starts from a known legal state
+// Force reset at step 0 so DUT starts from a known legal state
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
 end
 
-// 1. Reset
+// 1. Reset: empty asserted, full/valid deasserted
 always @(posedge clk) begin
     if (!rst_n) begin
         assert(empty);
@@ -37,15 +37,19 @@ always @(posedge clk) begin
     end
 end
 
-// 2. No overflow: write into full FIFO with no concurrent read leaves it full
+// 2. No overflow: write into full FIFO with no concurrent read and no reset
+//    leaves it full
 always @(posedge clk) begin
-    if (f_past_valid && $past(full) && $past(wr_en) && !$past(rd_en))
+    if (f_past_valid && rst_n && $past(rst_n) &&
+        $past(full) && $past(wr_en) && !$past(rd_en))
         assert(full);
 end
 
-// 3. No underflow: read from empty FIFO with no concurrent write leaves it empty
+// 3. No underflow: read from empty FIFO with no concurrent write and no reset
+//    leaves it empty
 always @(posedge clk) begin
-    if (f_past_valid && $past(empty) && $past(rd_en) && !$past(wr_en))
+    if (f_past_valid && rst_n && $past(rst_n) &&
+        $past(empty) && $past(rd_en) && !$past(wr_en))
         assert(empty);
 end
 
@@ -54,25 +58,30 @@ always @(posedge clk) begin
     if (rst_n) assert(!(full && empty));
 end
 
-// 5. valid only asserted the cycle after rd_en fired
+// 5. valid only asserted the cycle after rd_en fired, when no reset intervenes
 always @(posedge clk) begin
-    if (f_past_valid && !$past(rd_en)) assert(!valid);
+    if (f_past_valid && rst_n && $past(rst_n) && !$past(rd_en))
+        assert(!valid);
 end
 
-// 6. full sticky without a concurrent read
+// 6. full sticky: stays full when no read and no reset
 always @(posedge clk) begin
-    if (f_past_valid && $past(full) && !$past(rd_en)) assert(full);
+    if (f_past_valid && rst_n && $past(rst_n) &&
+        $past(full) && !$past(rd_en))
+        assert(full);
 end
 
-// 7. empty sticky without a concurrent write
+// 7. empty sticky: stays empty when no write and no reset
 always @(posedge clk) begin
-    if (f_past_valid && $past(empty) && !$past(wr_en)) assert(empty);
+    if (f_past_valid && rst_n && $past(rst_n) &&
+        $past(empty) && !$past(wr_en))
+        assert(empty);
 end
 
 always @(posedge clk) begin if (rst_n) cover(full);  end
 always @(posedge clk) begin if (rst_n) cover(valid); end
 always @(posedge clk) begin
-    if (f_past_valid) cover($past(full) && empty);
+    if (f_past_valid && rst_n) cover($past(full) && empty);
 end
 
 endmodule

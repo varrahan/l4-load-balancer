@@ -91,13 +91,29 @@ end
 // --------------------------------------------------------------------------
 // 4. Occupancy bound: difference of pointers never exceeds DEPTH
 // --------------------------------------------------------------------------
-wire [PTR_W-1:0] wr_ptr = dut.wr_ptr;
-wire [PTR_W-1:0] rd_ptr = dut.rd_ptr;
-wire [PTR_W-1:0] occupancy = wr_ptr - rd_ptr;
+reg [PTR_W-1:0] f_occupancy;
+
+initial f_occupancy = 0;
+
+always @(posedge clk) begin
+    if (!rst_n) begin
+        f_occupancy <= 0;
+    end else begin
+        // Increment on successful write (no read)
+        if (wr_en && !full && !(rd_en && !empty)) begin
+            f_occupancy <= f_occupancy + 1'b1;
+        end 
+        // Decrement on successful read (no write)
+        else if (rd_en && !empty && !(wr_en && !full)) begin
+            f_occupancy <= f_occupancy - 1'b1;
+        end
+        // If both happen simultaneously, occupancy stays the same
+    end
+end
 
 always @(posedge clk) begin
     if (rst_n) begin
-        assert_occ_bound: assert (occupancy <= DEPTH[PTR_W-1:0]);
+        assert_occ_bound: assert (f_occupancy <= DEPTH[PTR_W-1:0]);
     end
 end
 

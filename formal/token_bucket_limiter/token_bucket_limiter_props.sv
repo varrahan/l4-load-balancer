@@ -25,38 +25,52 @@ always @(posedge clk or negedge rst_n) begin
     else        addr_r_s <= hash_in[FIB_INDEX_BITS-1:0];
 end
 
-// Hold reset long enough to flush the 2-stage pipeline
-reg f_past_valid, fpv2, fpv3;
-initial begin f_past_valid = 1'b0; fpv2 = 1'b0; fpv3 = 1'b0; end
+// fpv chain: fpvN goes high N+1 cycles after simulation start
+// Pipeline is 2 stages, so we need fpv4 to ensure $past(x,2) only
+// looks at run-phase cycles (step 0=reset, steps 1-2=pipeline warmup,
+// step 3+ = assertion valid)
+reg f_past_valid, fpv2, fpv3, fpv4;
+initial begin
+    f_past_valid = 1'b0; fpv2 = 1'b0;
+    fpv3 = 1'b0;         fpv4 = 1'b0;
+end
 always @(posedge clk) begin
     f_past_valid <= 1'b1;
     fpv2 <= f_past_valid;
     fpv3 <= fpv2;
+    fpv4 <= fpv3;
 end
 
-// Hold reset for 3 cycles so pipeline is flushed before latency assertions fire
+// Step 0: reset; steps 1+: run
 always @(*) begin
-    if (!fpv2) assume(!rst_n);
+    if (!f_past_valid) assume(!rst_n);
+    else               assume(rst_n);
 end
 
+// 1. Reset
 always @(posedge clk) begin
     if (!rst_n) begin assert(!out_valid); assert(!out_bypass); end
 end
 
-// Latency assertions need 3 clean post-reset cycles of history
+// 2. Latency: 2-cycle pipeline
+// fpv4 ensures $past(x,2) only reaches back into clean run-phase cycles
 always @(posedge clk) begin
-    if (fpv3 && rst_n) assert(out_valid  == $past(in_valid,  2));
+    if (fpv4) assert(out_valid  == $past(in_valid,  2));
 end
 always @(posedge clk) begin
-    if (fpv3 && rst_n) assert(out_bypass == $past(in_bypass, 2));
+    if (fpv4) assert(out_bypass == $past(in_bypass, 2));
 end
 
+// 3. Address bound
 always @(posedge clk) begin
     if (rst_n) assert(addr_r_s < FIB_DEPTH[FIB_INDEX_BITS-1:0]);
 end
+
+// 4. server_id bounded
 always @(posedge clk) begin
     if (rst_n && out_valid) assert(server_id <= 3'd7);
 end
+
 always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass); end
 always @(posedge clk) begin if (rst_n) cover(out_valid &&  out_bypass); end
 

@@ -64,7 +64,7 @@ The design is a single-pass forwarding pipeline. Ingress AXI-Stream frames enter
                                 │
                   ┌─────────────▼────────────────┐
                   │       Checksum Updater       │
-                  │  (RFC 1624 incremental delta) │
+                  │ (RFC 1624 incremental delta) │
                   └─────────────┬────────────────┘
                                 │
                           Egress AXIS-M ──> Ethernet MAC

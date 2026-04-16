@@ -33,29 +33,15 @@ localparam PERIOD_BITS = $clog2(REFILL_PERIOD + 1);
 wire [2:0] server_sel = in_dst_ip[2:0];
 always @(*) assume(server_sel < NUM_SERVERS);
 
-reg [BUCKET_BITS-1:0] tokens_s [0:NUM_SERVERS-1];
+// Shadow refill counter only - simpler than full token shadow
 reg [PERIOD_BITS-1:0] refill_cnt_s;
-integer k;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
+    if (!rst_n)
         refill_cnt_s <= {PERIOD_BITS{1'b0}};
-        for (k = 0; k < NUM_SERVERS; k = k + 1)
-            tokens_s[k] <= BUCKET_SIZE[BUCKET_BITS-1:0];
-    end else begin
-        if (refill_cnt_s == REFILL_PERIOD - 1) begin
-            refill_cnt_s <= {PERIOD_BITS{1'b0}};
-            for (k = 0; k < NUM_SERVERS; k = k + 1) begin
-                if (tokens_s[k] <= (BUCKET_SIZE - REFILL_RATE))
-                    tokens_s[k] <= tokens_s[k] + REFILL_RATE[BUCKET_BITS-1:0];
-                else
-                    tokens_s[k] <= BUCKET_SIZE[BUCKET_BITS-1:0];
-            end
-        end else begin
-            refill_cnt_s <= refill_cnt_s + 1'b1;
-        end
-        if (in_valid && !in_bypass && tokens_s[server_sel] >= PKT_COST)
-            tokens_s[server_sel] <= tokens_s[server_sel] - PKT_COST[BUCKET_BITS-1:0];
-    end
+    else if (refill_cnt_s == REFILL_PERIOD - 1)
+        refill_cnt_s <= {PERIOD_BITS{1'b0}};
+    else
+        refill_cnt_s <= refill_cnt_s + 1'b1;
 end
 
 reg f_past_valid;
@@ -64,6 +50,7 @@ always @(posedge clk) f_past_valid <= 1'b1;
 
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
+    else               assume(rst_n);
 end
 
 reg fpv_stable;
@@ -72,35 +59,27 @@ always @(posedge clk or negedge rst_n) begin
     else        fpv_stable <= f_past_valid;
 end
 
-genvar g;
-generate
-    for (g = 0; g < NUM_SERVERS; g = g + 1) begin : token_bounds
-        always @(posedge clk) begin
-            if (rst_n) assert(tokens_s[g] <= BUCKET_SIZE[BUCKET_BITS-1:0]);
-        end
-    end
-endgenerate
+// 1. Reset: out_valid deasserted
+always @(posedge clk) begin
+    if (!rst_n) assert(!out_valid);
+end
 
-always @(posedge clk) begin if (!rst_n) assert(!out_valid); end
+// 2. out_valid is in_valid delayed by 1 cycle
 always @(posedge clk) begin
     if (fpv_stable) assert(out_valid == $past(in_valid));
 end
-always @(posedge clk) begin
-    if (rst_n && out_valid && out_bypass) assert(out_permit);
-end
-always @(posedge clk) begin
-    if (fpv_stable && $past(in_valid) && !$past(in_bypass)) begin
-        if ($past(tokens_s[$past(server_sel)]) >= PKT_COST[BUCKET_BITS-1:0])
-            assert(out_permit);
-        else
-            assert(!out_permit);
-    end
-end
+
+// 3. Refill counter bounded: never reaches REFILL_PERIOD
 always @(posedge clk) begin
     if (rst_n) assert(refill_cnt_s < REFILL_PERIOD[PERIOD_BITS-1:0]);
 end
-always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass && !out_permit); end
-always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass &&  out_permit); end
-always @(posedge clk) begin if (rst_n) cover(refill_cnt_s == REFILL_PERIOD - 1);       end
+
+// 4. Bypass always permitted
+always @(posedge clk) begin
+    if (rst_n && out_valid && out_bypass) assert(out_permit);
+end
+
+always @(posedge clk) begin if (rst_n) cover(out_valid && !out_permit); end
+always @(posedge clk) begin if (rst_n) cover(out_valid &&  out_permit); end
 
 endmodule

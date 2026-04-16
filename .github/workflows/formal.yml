@@ -21,21 +21,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install OSS CAD Suite
-        run: |
-          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2024-01-01/oss-cad-suite-linux-x64-20240101.tgz \
-            -O /tmp/oss-cad-suite.tgz || \
-          # Fallback: install via apt
-          sudo apt-get update -qq && \
-          sudo apt-get install -y --no-install-recommends \
-            symbiyosys yosys yices2 z3
-        continue-on-error: true
-
-      - name: Install via apt (primary path)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends \
-            symbiyosys yosys yices2
+      - name: Setup OSS CAD Suite
+        uses: YosysHQ/setup-oss-cad-suite@v3
+        with:
+          version: '2024-01-01' # You can also change this to 'latest'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify toolchain
         run: |

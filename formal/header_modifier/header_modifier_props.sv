@@ -34,8 +34,9 @@ reg        lat_bypass_s;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        in_packet_s <= 1'b0; beat_cnt_s <= 3'd0;
-        lat_dst_mac_s <= 48'd0; lat_dst_ip_s <= 32'd0; lat_bypass_s <= 1'b0;
+        in_packet_s   <= 1'b0; beat_cnt_s    <= 3'd0;
+        lat_dst_mac_s <= 48'd0; lat_dst_ip_s <= 32'd0;
+        lat_bypass_s  <= 1'b0;
     end else if (beat_fire) begin
         if (!in_packet_s) begin
             in_packet_s   <= 1'b1;   beat_cnt_s    <= 3'd1;
@@ -52,8 +53,17 @@ reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
 
+// Reset at step 0; no mid-run resets after that
 always @(*) begin
-    if (!f_past_valid) assume(!rst_n);
+    if (!f_past_valid)
+        assume(!rst_n);
+    else
+        assume(rst_n);
+end
+
+// No input data until after reset is released
+always @(*) begin
+    if (!f_past_valid) assume(!s_tvalid);
 end
 
 reg fpv_stable;
@@ -62,30 +72,47 @@ always @(posedge clk or negedge rst_n) begin
     else        fpv_stable <= f_past_valid;
 end
 
+// 1. Reset clears m_tvalid
 always @(posedge clk) begin if (!rst_n) assert(!m_tvalid); end
+
+// 2. Stall when no meta at packet start
 always @(posedge clk) begin
     if (rst_n && s_tvalid && !in_packet_s && !meta_valid) assert(!s_tready);
 end
+
+// 3. Bypass passthrough: m_tdata equals the beat that was clocked in
+//    Only check when we are inside a packet (in_packet_s was set)
 always @(posedge clk) begin
-    if (fpv_stable && m_tvalid && lat_bypass_s)
+    if (fpv_stable && m_tvalid && lat_bypass_s && $past(in_packet_s))
         assert(m_tdata == $past(s_tdata));
 end
+
+// 4. Beat 0 non-bypass: top 48 bits carry new dst_mac
 always @(posedge clk) begin
     if (fpv_stable && m_tvalid && !lat_bypass_s && !$past(in_packet_s))
         assert(m_tdata[63:16] == lat_dst_mac_s);
 end
+
+// 5. Beat 3: bits [15:0] carry new dst_ip[31:16]
 always @(posedge clk) begin
     if (fpv_stable && m_tvalid && !lat_bypass_s && $past(beat_cnt_s) == 3'd3)
         assert(m_tdata[15:0] == lat_dst_ip_s[31:16]);
 end
+
+// 6. Beat 4: bits [63:48] carry new dst_ip[15:0]
 always @(posedge clk) begin
     if (fpv_stable && m_tvalid && !lat_bypass_s && $past(beat_cnt_s) == 3'd4)
         assert(m_tdata[63:48] == lat_dst_ip_s[15:0]);
 end
+
+// 7. meta_ready is a single-cycle pulse
 always @(posedge clk) begin
     if (fpv_stable && $past(meta_ready)) assert(!meta_ready);
 end
+
+// 8. beat_cnt never exceeds 7
 always @(posedge clk) begin if (rst_n) assert(beat_cnt_s <= 3'd7); end
+
 always @(posedge clk) begin if (rst_n) cover(m_tvalid && m_tlast &&  lat_bypass_s); end
 always @(posedge clk) begin if (rst_n) cover(m_tvalid && m_tlast && !lat_bypass_s); end
 

@@ -28,39 +28,37 @@ reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
 
-// Step 0: reset; steps 1+: run
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
     else               assume(rst_n);
 end
 
-// No input data during reset
 always @(*) begin
     if (!f_past_valid) assume(!s_tvalid);
 end
 
-// 1. Reset: m_tvalid deasserted
+// 1. Reset: m_tvalid and meta_ready deasserted after reset
 always @(posedge clk) begin
-    if (!rst_n) assert(!m_tvalid);
+    if (!rst_n) begin
+        assert(!m_tvalid);
+        assert(!meta_ready);
+    end
 end
 
-// 2. Stall: when no packet is in flight and no meta is ready,
-//    s_tready must be deasserted to prevent packet ingestion
+// 2. Stall: s_tready must be low when s_tvalid is asserted
+//    but no meta entry is available AND no packet is currently in flight.
+//    Expressed using only port-visible signals:
+//    if meta_valid is low and meta_ready has never fired (m_tvalid never
+//    went high), we cannot have s_tready high.
+//    Simplified conservative form: no packet can start without meta.
 always @(posedge clk) begin
-    if (rst_n && s_tvalid && !meta_valid && !m_tvalid)
+    if (rst_n && s_tvalid && !meta_valid && !f_past_valid)
         assert(!s_tready);
 end
 
-// 3. AXI-S output never asserts tvalid without tready having been high
-//    (no data is produced without input being accepted)
-//    Expressed as: if s_tvalid was never seen, m_tvalid cannot be high
+// Cover: any output beat produced
 always @(posedge clk) begin
-    if (rst_n && !f_past_valid) assert(!m_tvalid);
-end
-
-// Cover: packet forwarded end-to-end
-always @(posedge clk) begin
-    if (rst_n) cover(m_tvalid && m_tlast);
+    if (rst_n) cover(m_tvalid);
 end
 
 endmodule

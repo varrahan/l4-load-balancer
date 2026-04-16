@@ -24,6 +24,8 @@ jobs:
         run: |
           yosys --version
           yices-smt2 --version || yices --version || true
+      - name: Debug sby file
+        run: cat formal/sync_fifo/sync_fifo.sby
 
       - name: Run sync_fifo formal
         run: sby -f formal/sync_fifo/sync_fifo.sby

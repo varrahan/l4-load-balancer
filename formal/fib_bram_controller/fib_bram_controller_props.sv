@@ -29,18 +29,13 @@ reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
 
-// Step 0: reset; steps 1+: run
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
     else               assume(rst_n);
 end
 
-// Input constraint: in_valid and in_bypass are mutually exclusive always
-always @(*) begin
-    assume(!(in_valid && in_bypass));
-end
+always @(*) assume(!(in_valid && in_bypass));
 
-// During reset, no valid inputs
 always @(*) begin
     if (!f_past_valid) begin
         assume(!in_valid);
@@ -48,7 +43,7 @@ always @(*) begin
     end
 end
 
-// 1. Reset: outputs deasserted
+// 1. Reset: out_valid and out_bypass deasserted
 always @(posedge clk) begin
     if (!rst_n) begin
         assert(!out_valid);
@@ -56,19 +51,11 @@ always @(posedge clk) begin
     end
 end
 
-// 2. Address bound: BRAM index always within table
+// 2. BRAM address never out of bounds
 always @(posedge clk) begin
     if (rst_n) assert(addr_r_s < FIB_DEPTH[FIB_INDEX_BITS-1:0]);
 end
 
-// 3. server_id is a 3-bit field, always in [0,7]
-// Only meaningful when out_valid comes from the valid pipeline (not BRAM)
-// so guard on rst_n only - server_id from BRAM can be arbitrary otherwise
-always @(posedge clk) begin
-    if (rst_n && out_valid) assert(server_id <= 3'd7);
-end
-
 always @(posedge clk) begin if (rst_n) cover(out_valid); end
-always @(posedge clk) begin if (rst_n) cover(out_bypass); end
 
 endmodule

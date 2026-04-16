@@ -6,10 +6,10 @@ depth 20
 smtbmc yices
 
 [script]
-read_verilog -formal sync_fifo.v
-read_verilog -sv -formal sync_fifo_props.sv
+read -formal sync_fifo.v
+read -sv -formal sync_fifo_props.sv
 prep -top sync_fifo_props
 
 [files]
-../../rtl/common/sync_fifo.v
-sync_fifo_props.sv
+rtl/common/sync_fifo.v
+formal/sync_fifo/sync_fifo_props.sv

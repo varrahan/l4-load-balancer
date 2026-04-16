@@ -46,11 +46,6 @@ always @(posedge clk) begin
 end
 
 // 2. Stall: s_tready must be low when s_tvalid is asserted
-//    but no meta entry is available AND no packet is currently in flight.
-//    Expressed using only port-visible signals:
-//    if meta_valid is low and meta_ready has never fired (m_tvalid never
-//    went high), we cannot have s_tready high.
-//    Simplified conservative form: no packet can start without meta.
 always @(posedge clk) begin
     if (rst_n && s_tvalid && !meta_valid && !f_past_valid)
         assert(!s_tready);

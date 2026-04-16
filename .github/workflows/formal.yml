@@ -22,7 +22,6 @@ jobs:
 
       - name: Verify toolchain
         run: |
-          sby --version
           yosys --version
           yices-smt2 --version || yices --version || true
 

@@ -7,31 +7,61 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build-and-simulate:
+  simulate:
+    name: Build and Simulate
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Check out the repository code
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Install Icarus Verilog (iverilog)
       - name: Install Icarus Verilog
         run: |
           sudo apt-get update
           sudo apt-get install -y iverilog
 
-      # Step 3: Compile the Verilog files
-      # Replace the paths below with your actual design and testbench files
-      - name: Compile Design and Testbench
-        run: |
-          # Example: Compiling all source files in 'rtl' and testbenches in 'tb'
-          # iverilog -o simulation.vvp rtl/*.v tb/*.v
-          
-          # For a simple project, you might just do:
-          iverilog -o simulation.vvp *.v
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-      # Step 4: Run the simulation using vvp
-      - name: Run Simulation
+      - name: Install Python Dependencies (Scapy)
+        run: pip install scapy
+
+      - name: Generate Test Traffic
         run: |
-          vvp simulation.vvp
+          cd scripts/networking
+          mkdir -p ../../tb/pcap_data
+          python3 generate_test_traffic.py --scenario all --output-dir ../../tb/pcap_data/
+
+      - name: Run Unit Test - Tuple Extractor
+        run: |
+          # Enable recursive globbing to grab all RTL files easily
+          shopt -s globstar
+          
+          # Compile all RTL files along with this specific testbench
+          iverilog -g2012 -o unit_tuple.vvp rtl/**/*.v tb/unit/tb_tuple_extractor.v
+          
+          # Run the simulation
+          vvp unit_tuple.vvp
+
+      - name: Run Unit Test - Toeplitz Core
+        run: |
+          shopt -s globstar
+          iverilog -g2012 -o unit_toeplitz.vvp rtl/**/*.v tb/unit/tb_toeplitz_core.v
+          vvp unit_toeplitz.vvp
+
+      - name: Run Integration Test - Full L4 Pipeline
+        run: |
+          shopt -s globstar
+          iverilog -g2012 -o integration.vvp rtl/**/*.v tb/integration/tb_l4_pipeline_full.v
+          vvp integration.vvp
+
+      - name: Verify Output PCAP Data
+        run: |
+          cd scripts/networking
+          # Using the project's included verification script to check checksums/outputs
+          python3 hex_to_pcap.py \
+            -i ../../tb/pcap_data/output_hex_dump.txt \
+            -o ../../tb/pcap_data/output_traffic.pcap \
+            --verify

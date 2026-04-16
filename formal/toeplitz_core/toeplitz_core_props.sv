@@ -29,12 +29,20 @@ always @(posedge clk) begin
     fpv4 <= fpv3;
 end
 
-// Assume rst_n stays high for the entire trace so pipeline latency assertions
-// are checked in steady-state operation only
-always @(*) assume(rst_n);
+// Reset must be asserted at step 0 to initialise DUT registers
+always @(*) begin
+    if (!f_past_valid) assume(!rst_n);
+end
 
-// 1. Reset: outputs deasserted (vacuously true given assume above, but kept
-//    for documentation)
+// For the latency assertions specifically, also assume rst_n stays high
+// after the initial reset so the pipeline operates without interruption.
+// Expressed as: once rst_n goes high it never goes low again.
+// This is encoded as a past-value constraint inside a clocked block.
+always @(posedge clk) begin
+    if (f_past_valid && $past(rst_n)) assume(rst_n);
+end
+
+// 1. Reset: outputs deasserted
 always @(posedge clk) begin
     if (!rst_n) begin assert(!out_valid); assert(!out_bypass); end
 end
@@ -55,6 +63,6 @@ always @(posedge clk) begin
 end
 
 always @(posedge clk) begin if (rst_n) cover(out_valid && hash_out != 32'd0); end
-always @(posedge clk) begin if (fpv4) cover(out_valid && $past(out_valid)); end
+always @(posedge clk) begin if (fpv4)  cover(out_valid && $past(out_valid));  end
 
 endmodule

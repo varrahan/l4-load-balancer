@@ -19,11 +19,14 @@ sync_fifo #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(DEPTH)) dut (
     .rd_data(rd_data), .valid(valid), .empty(empty), .full(full)
 );
 
-// f_past_valid: suppress $past-based assertions at step 0
-// $initstate is 1 only at BMC step 0; f_past_valid is 0 there, 1 thereafter
 reg f_past_valid;
 initial f_past_valid = 1'b0;
 always @(posedge clk) f_past_valid <= 1'b1;
+
+// Force reset at step 0 so the DUT always starts from a known legal state
+always @(*) begin
+    if (!f_past_valid) assume(!rst_n);
+end
 
 // 1. Reset
 always @(posedge clk) begin

@@ -1,11 +1,4 @@
-// =============================================================================
-// formal/sync_fifo/sync_fifo_props.sv
-// Formal properties for sync_fifo - Yosys/SymbiYosys compatible
-// No hierarchical references - properties expressed via DUT output ports only
-// =============================================================================
-
 `default_nettype none
-
 module sync_fifo_props #(
     parameter DATA_WIDTH = 8,
     parameter DEPTH      = 4
@@ -20,25 +13,20 @@ module sync_fifo_props #(
 wire [DATA_WIDTH-1:0] rd_data;
 wire                  valid, empty, full;
 
-sync_fifo #(
-    .DATA_WIDTH(DATA_WIDTH),
-    .DEPTH     (DEPTH)
-) dut (
-    .clk    (clk),
-    .rst_n  (rst_n),
-    .wr_en  (wr_en),
-    .wr_data(wr_data),
-    .rd_en  (rd_en),
-    .rd_data(rd_data),
-    .valid  (valid),
-    .empty  (empty),
-    .full   (full)
+sync_fifo #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(DEPTH)) dut (
+    .clk(clk), .rst_n(rst_n),
+    .wr_en(wr_en), .wr_data(wr_data), .rd_en(rd_en),
+    .rd_data(rd_data), .valid(valid), .empty(empty), .full(full)
 );
 
-// Abbreviation: both this cycle and last cycle were out of reset
-wire stable = rst_n && $past(rst_n);
+// stable: registered flag - high only when rst_n was high last cycle too
+reg stable;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) stable <= 1'b0;
+    else        stable <= 1'b1;
+end
 
-// 1. Reset: empty asserted, full and valid deasserted
+// 1. Reset
 always @(posedge clk) begin
     if (!rst_n) begin
         assert(empty);
@@ -47,53 +35,44 @@ always @(posedge clk) begin
     end
 end
 
-// 2. No overflow: write into full FIFO with no concurrent read leaves it full
+// 2. No overflow
 always @(posedge clk) begin
     if (stable && $past(full) && $past(wr_en) && !$past(rd_en))
         assert(full);
 end
 
-// 3. No underflow: read from empty FIFO with no concurrent write leaves it empty
+// 3. No underflow
 always @(posedge clk) begin
     if (stable && $past(empty) && $past(rd_en) && !$past(wr_en))
         assert(empty);
 end
 
-// 4. full and empty are mutually exclusive
+// 4. Mutual exclusion
 always @(posedge clk) begin
-    if (rst_n)
-        assert(!(full && empty));
+    if (rst_n) assert(!(full && empty));
 end
 
-// 5. valid only asserted the cycle after rd_en fired
+// 5. valid only follows rd_en
 always @(posedge clk) begin
-    if (stable && !$past(rd_en))
-        assert(!valid);
+    if (stable && !$past(rd_en)) assert(!valid);
 end
 
-// 6. Once full, stays full unless a read occurs
+// 6. full sticky without read
 always @(posedge clk) begin
-    if (stable && $past(full) && !$past(rd_en))
-        assert(full);
+    if (stable && $past(full) && !$past(rd_en)) assert(full);
 end
 
-// 7. Once empty, stays empty unless a write occurs
+// 7. empty sticky without write
 always @(posedge clk) begin
-    if (stable && $past(empty) && !$past(wr_en))
-        assert(empty);
+    if (stable && $past(empty) && !$past(wr_en)) assert(empty);
 end
 
-// Cover: full state reachable
 always @(posedge clk) begin
     if (rst_n) cover(full);
 end
-
-// Cover: valid output reachable
 always @(posedge clk) begin
     if (rst_n) cover(valid);
 end
-
-// Cover: full then empty (fill and drain)
 always @(posedge clk) begin
     if (stable) cover($past(full) && empty);
 end

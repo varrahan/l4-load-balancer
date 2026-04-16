@@ -1,28 +1,61 @@
 `default_nettype none
-module fib_bram_controller_props #(parameter FIB_INDEX_BITS = 4) (
+module token_bucket_limiter_props #(
+    parameter NUM_SERVERS   = 2,
+    parameter BUCKET_SIZE   = 4,
+    parameter REFILL_RATE   = 2,
+    parameter REFILL_PERIOD = 4,
+    parameter PKT_COST      = 1
+) (
     input wire clk, input wire rst_n,
-    input wire [31:0] hash_in,
-    input wire in_valid, input wire in_bypass
+    input wire in_valid, input wire in_bypass,
+    input wire [47:0] in_dst_mac, input wire [31:0] in_dst_ip
 );
 
-wire [47:0] dst_mac;
-wire [31:0] dst_ip;
-wire [2:0]  server_id;
-wire        out_valid, out_bypass;
+wire        out_valid, out_bypass, out_permit;
+wire [47:0] out_dst_mac;
+wire [31:0] out_dst_ip;
 
-fib_bram_controller #(.FIB_INDEX_BITS(FIB_INDEX_BITS), .FIB_INIT_FILE("")) dut (
+token_bucket_limiter #(
+    .NUM_SERVERS(NUM_SERVERS), .BUCKET_SIZE(BUCKET_SIZE),
+    .REFILL_RATE(REFILL_RATE), .REFILL_PERIOD(REFILL_PERIOD),
+    .PKT_COST(PKT_COST)
+) dut (
     .clk(clk), .rst_n(rst_n),
-    .hash_in(hash_in), .in_valid(in_valid), .in_bypass(in_bypass),
-    .dst_mac(dst_mac), .dst_ip(dst_ip),
-    .server_id(server_id), .out_valid(out_valid), .out_bypass(out_bypass)
+    .in_valid(in_valid), .in_bypass(in_bypass),
+    .in_dst_mac(in_dst_mac), .in_dst_ip(in_dst_ip),
+    .out_valid(out_valid), .out_bypass(out_bypass), .out_permit(out_permit),
+    .out_dst_mac(out_dst_mac), .out_dst_ip(out_dst_ip)
 );
 
-localparam FIB_DEPTH = 1 << FIB_INDEX_BITS;
+localparam BUCKET_BITS = $clog2(BUCKET_SIZE + 1);
+localparam PERIOD_BITS = $clog2(REFILL_PERIOD + 1);
 
-reg [FIB_INDEX_BITS-1:0] addr_r_s;
+wire [2:0] server_sel = in_dst_ip[2:0];
+always @(*) assume(server_sel < NUM_SERVERS);
+
+reg [BUCKET_BITS-1:0] tokens_s [0:NUM_SERVERS-1];
+reg [PERIOD_BITS-1:0] refill_cnt_s;
+integer k;
 always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) addr_r_s <= {FIB_INDEX_BITS{1'b0}};
-    else        addr_r_s <= hash_in[FIB_INDEX_BITS-1:0];
+    if (!rst_n) begin
+        refill_cnt_s <= {PERIOD_BITS{1'b0}};
+        for (k = 0; k < NUM_SERVERS; k = k + 1)
+            tokens_s[k] <= BUCKET_SIZE[BUCKET_BITS-1:0];
+    end else begin
+        if (refill_cnt_s == REFILL_PERIOD - 1) begin
+            refill_cnt_s <= {PERIOD_BITS{1'b0}};
+            for (k = 0; k < NUM_SERVERS; k = k + 1) begin
+                if (tokens_s[k] <= (BUCKET_SIZE - REFILL_RATE))
+                    tokens_s[k] <= tokens_s[k] + REFILL_RATE[BUCKET_BITS-1:0];
+                else
+                    tokens_s[k] <= BUCKET_SIZE[BUCKET_BITS-1:0];
+            end
+        end else begin
+            refill_cnt_s <= refill_cnt_s + 1'b1;
+        end
+        if (in_valid && !in_bypass && tokens_s[server_sel] >= PKT_COST)
+            tokens_s[server_sel] <= tokens_s[server_sel] - PKT_COST[BUCKET_BITS-1:0];
+    end
 end
 
 reg f_past_valid;
@@ -31,34 +64,43 @@ always @(posedge clk) f_past_valid <= 1'b1;
 
 always @(*) begin
     if (!f_past_valid) assume(!rst_n);
-    else               assume(rst_n);
 end
 
-// 1. Reset: outputs deasserted
+reg fpv_stable;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) fpv_stable <= 1'b0;
+    else        fpv_stable <= f_past_valid;
+end
+
+genvar g;
+generate
+    for (g = 0; g < NUM_SERVERS; g = g + 1) begin : token_bounds
+        always @(posedge clk) begin
+            if (rst_n) assert(tokens_s[g] <= BUCKET_SIZE[BUCKET_BITS-1:0]);
+        end
+    end
+endgenerate
+
+always @(posedge clk) begin if (!rst_n) assert(!out_valid); end
 always @(posedge clk) begin
-    if (!rst_n) begin
-        assert(!out_valid);
-        assert(!out_bypass);
+    if (fpv_stable) assert(out_valid == $past(in_valid));
+end
+always @(posedge clk) begin
+    if (rst_n && out_valid && out_bypass) assert(out_permit);
+end
+always @(posedge clk) begin
+    if (fpv_stable && $past(in_valid) && !$past(in_bypass)) begin
+        if ($past(tokens_s[$past(server_sel)]) >= PKT_COST[BUCKET_BITS-1:0])
+            assert(out_permit);
+        else
+            assert(!out_permit);
     end
 end
-
-// 2. Address bound: BRAM index always within table
 always @(posedge clk) begin
-    if (rst_n) assert(addr_r_s < FIB_DEPTH[FIB_INDEX_BITS-1:0]);
+    if (rst_n) assert(refill_cnt_s < REFILL_PERIOD[PERIOD_BITS-1:0]);
 end
-
-// 3. server_id is a 3-bit field, always in [0,7]
-always @(posedge clk) begin
-    if (rst_n && out_valid) assert(server_id <= 3'd7);
-end
-
-// 4. out_valid and out_bypass never simultaneously asserted
-// (bypass propagates through the valid pipeline, not from BRAM)
-always @(posedge clk) begin
-    if (rst_n) assert(!(out_valid && out_bypass));
-end
-
-always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass); end
-always @(posedge clk) begin if (rst_n) cover(out_bypass); end
+always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass && !out_permit); end
+always @(posedge clk) begin if (rst_n) cover(out_valid && !out_bypass &&  out_permit); end
+always @(posedge clk) begin if (rst_n) cover(refill_cnt_s == REFILL_PERIOD - 1);       end
 
 endmodule

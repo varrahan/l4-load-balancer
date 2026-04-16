@@ -1,0 +1,37 @@
+name: Icarus Verilog CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-simulate:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Icarus Verilog (iverilog)
+      - name: Install Icarus Verilog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+
+      # Step 3: Compile the Verilog files
+      # Replace the paths below with your actual design and testbench files
+      - name: Compile Design and Testbench
+        run: |
+          # Example: Compiling all source files in 'src' and testbenches in 'tb'
+          # iverilog -o simulation.vvp src/*.v tb/*.v
+          
+          # For a simple project, you might just do:
+          iverilog -o simulation.vvp *.v
+
+      # Step 4: Run the simulation using vvp
+      - name: Run Simulation
+        run: |
+          vvp simulation.vvp

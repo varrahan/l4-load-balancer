@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 16
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal rtl/hash/toeplitz_core.v
+read -formal formal/toeplitz_core/toeplitz_core_props.sv
+prep -top toeplitz_core_props
+
+[files]
+rtl/hash/toeplitz_core.v
+formal/toeplitz_core/toeplitz_core_props.sv

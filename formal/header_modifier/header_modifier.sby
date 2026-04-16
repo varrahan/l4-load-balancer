@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal rtl/rewrite/header_modifier.v
+read -formal formal/header_modifier/header_modifier_props.sv
+prep -top header_modifier_props
+
+[files]
+rtl/rewrite/header_modifier.v
+formal/header_modifier/header_modifier_props.sv

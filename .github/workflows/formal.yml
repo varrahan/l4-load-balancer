@@ -1,0 +1,82 @@
+name: Formal Verification
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'rtl/**'
+      - 'formal/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'rtl/**'
+      - 'formal/**'
+
+jobs:
+  formal:
+    name: SymbiYosys BMC
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install OSS CAD Suite
+        run: |
+          wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2024-01-01/oss-cad-suite-linux-x64-20240101.tgz \
+            -O /tmp/oss-cad-suite.tgz || \
+          # Fallback: install via apt
+          sudo apt-get update -qq && \
+          sudo apt-get install -y --no-install-recommends \
+            symbiyosys yosys yices2 z3
+        continue-on-error: true
+
+      - name: Install via apt (primary path)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            symbiyosys yosys yices2
+
+      - name: Verify toolchain
+        run: |
+          sby --version
+          yosys --version
+          yices-smt2 --version || yices --version || true
+
+      - name: Run sync_fifo formal
+        run: sby -f formal/sync_fifo/sync_fifo.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run meta_fifo formal
+        run: sby -f formal/meta_fifo/meta_fifo.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run tuple_extractor formal
+        run: sby -f formal/tuple_extractor/tuple_extractor.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run toeplitz_core formal
+        run: sby -f formal/toeplitz_core/toeplitz_core.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run header_modifier formal
+        run: sby -f formal/header_modifier/header_modifier.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run fib_bram_controller formal
+        run: sby -f formal/fib_bram_controller/fib_bram_controller.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Run token_bucket_limiter formal
+        run: sby -f formal/token_bucket_limiter/token_bucket_limiter.sby
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload counterexample traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formal-counterexamples
+          path: |
+            formal/**/work/engine_0/trace*.vcd
+            formal/**/work/logfile.txt
+          retention-days: 7

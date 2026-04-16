@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 12
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal rtl/forwarding/fib_bram_controller.v
+read -formal formal/fib_bram_controller/fib_bram_controller_props.sv
+prep -top fib_bram_controller_props
+
+[files]
+rtl/forwarding/fib_bram_controller.v
+formal/fib_bram_controller/fib_bram_controller_props.sv

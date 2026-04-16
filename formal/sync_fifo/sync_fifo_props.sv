@@ -19,12 +19,11 @@ sync_fifo #(.DATA_WIDTH(DATA_WIDTH), .DEPTH(DEPTH)) dut (
     .rd_data(rd_data), .valid(valid), .empty(empty), .full(full)
 );
 
-// stable: registered flag - high only when rst_n was high last cycle too
-reg stable;
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) stable <= 1'b0;
-    else        stable <= 1'b1;
-end
+// f_past_valid: suppress $past-based assertions at step 0
+// $initstate is 1 only at BMC step 0; f_past_valid is 0 there, 1 thereafter
+reg f_past_valid;
+initial f_past_valid = 1'b0;
+always @(posedge clk) f_past_valid <= 1'b1;
 
 // 1. Reset
 always @(posedge clk) begin
@@ -35,46 +34,42 @@ always @(posedge clk) begin
     end
 end
 
-// 2. No overflow
+// 2. No overflow: write into full FIFO with no concurrent read leaves it full
 always @(posedge clk) begin
-    if (stable && $past(full) && $past(wr_en) && !$past(rd_en))
+    if (f_past_valid && $past(full) && $past(wr_en) && !$past(rd_en))
         assert(full);
 end
 
-// 3. No underflow
+// 3. No underflow: read from empty FIFO with no concurrent write leaves it empty
 always @(posedge clk) begin
-    if (stable && $past(empty) && $past(rd_en) && !$past(wr_en))
+    if (f_past_valid && $past(empty) && $past(rd_en) && !$past(wr_en))
         assert(empty);
 end
 
-// 4. Mutual exclusion
+// 4. full and empty mutually exclusive
 always @(posedge clk) begin
     if (rst_n) assert(!(full && empty));
 end
 
-// 5. valid only follows rd_en
+// 5. valid only asserted the cycle after rd_en fired
 always @(posedge clk) begin
-    if (stable && !$past(rd_en)) assert(!valid);
+    if (f_past_valid && !$past(rd_en)) assert(!valid);
 end
 
-// 6. full sticky without read
+// 6. full sticky without a concurrent read
 always @(posedge clk) begin
-    if (stable && $past(full) && !$past(rd_en)) assert(full);
+    if (f_past_valid && $past(full) && !$past(rd_en)) assert(full);
 end
 
-// 7. empty sticky without write
+// 7. empty sticky without a concurrent write
 always @(posedge clk) begin
-    if (stable && $past(empty) && !$past(wr_en)) assert(empty);
+    if (f_past_valid && $past(empty) && !$past(wr_en)) assert(empty);
 end
 
+always @(posedge clk) begin if (rst_n) cover(full);  end
+always @(posedge clk) begin if (rst_n) cover(valid); end
 always @(posedge clk) begin
-    if (rst_n) cover(full);
-end
-always @(posedge clk) begin
-    if (rst_n) cover(valid);
-end
-always @(posedge clk) begin
-    if (stable) cover($past(full) && empty);
+    if (f_past_valid) cover($past(full) && empty);
 end
 
 endmodule

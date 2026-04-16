@@ -17,6 +17,8 @@ toeplitz_core dut (
     .hash_out(hash_out), .out_valid(out_valid), .out_bypass(out_bypass)
 );
 
+// Phase tracking: step 0 = reset, steps 1+ = run
+// rst_released goes high the cycle after f_past_valid first goes high
 reg f_past_valid, fpv2, fpv3, fpv4;
 initial begin
     f_past_valid = 1'b0; fpv2 = 1'b0;
@@ -29,17 +31,14 @@ always @(posedge clk) begin
     fpv4 <= fpv3;
 end
 
-// Reset must be asserted at step 0 to initialise DUT registers
+// Step 0: force reset low to initialise DUT
+// Steps 1+: force reset high so pipeline runs cleanly
+// Both are combinatorial so they apply every timestep
 always @(*) begin
-    if (!f_past_valid) assume(!rst_n);
-end
-
-// For the latency assertions specifically, also assume rst_n stays high
-// after the initial reset so the pipeline operates without interruption.
-// Expressed as: once rst_n goes high it never goes low again.
-// This is encoded as a past-value constraint inside a clocked block.
-always @(posedge clk) begin
-    if (f_past_valid && $past(rst_n)) assume(rst_n);
+    if (!f_past_valid)
+        assume(!rst_n);
+    else
+        assume(rst_n);
 end
 
 // 1. Reset: outputs deasserted
@@ -48,6 +47,8 @@ always @(posedge clk) begin
 end
 
 // 2. Latency: out_valid arrives exactly 3 cycles after in_valid
+// fpv4 is high from step 4 onward, by which time 3 clean run-phase cycles
+// have elapsed after the reset phase ended at step 0
 always @(posedge clk) begin
     if (fpv4) assert(out_valid == $past(in_valid, 3));
 end

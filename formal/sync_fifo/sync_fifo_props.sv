@@ -14,8 +14,6 @@
 //   7. valid tracks rd_en     - valid is high iff rd_en was asserted on previous cycle
 // =============================================================================
 
-`default_nettype none
-
 module sync_fifo_props #(
     parameter DATA_WIDTH = 8,
     parameter DEPTH      = 4    // small depth for bounded model checking

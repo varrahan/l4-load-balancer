@@ -1,0 +1,15 @@
+[options]
+mode bmc
+depth 20
+
+[engines]
+smtbmc yices
+
+[script]
+read -formal rtl/common/meta_fifo.v
+read -formal formal/meta_fifo/meta_fifo_props.sv
+prep -top meta_fifo_props
+
+[files]
+rtl/common/meta_fifo.v
+formal/meta_fifo/meta_fifo_props.sv

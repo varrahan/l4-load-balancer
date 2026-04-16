@@ -1,4 +1,5 @@
-default_nettype none
+`default_nettype none
+
 module sync_fifo_props #(
     parameter DATA_WIDTH = 8,
     parameter DEPTH      = 4

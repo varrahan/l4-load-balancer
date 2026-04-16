@@ -6,8 +6,8 @@ depth 20
 smtbmc yices
 
 [script]
-read -formal rtl/rewrite/header_modifier.v
-read -formal formal/header_modifier/header_modifier_props.sv
+read -formal header_modifier.v
+read -formal header_modifier_props.sv
 prep -top header_modifier_props
 
 [files]

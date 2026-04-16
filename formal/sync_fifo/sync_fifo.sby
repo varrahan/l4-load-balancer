@@ -6,8 +6,8 @@ depth 20
 smtbmc yices
 
 [script]
-read -formal rtl/common/sync_fifo.v
-read -formal formal/sync_fifo/sync_fifo_props.sv
+read -formal sync_fifo.v
+read -formal sync_fifo_props.sv
 prep -top sync_fifo_props
 
 [files]

@@ -6,8 +6,8 @@ depth 32
 smtbmc yices
 
 [script]
-read -formal rtl/forwarding/token_bucket_limiter.v
-read -formal formal/token_bucket_limiter/token_bucket_limiter_props.sv
+read -formal token_bucket_limiter.v
+read -formal token_bucket_limiter_props.sv
 prep -top token_bucket_limiter_props
 
 [files]

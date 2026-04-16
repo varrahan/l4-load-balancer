@@ -6,8 +6,8 @@ depth 12
 smtbmc yices
 
 [script]
-read -formal rtl/parser/tuple_extractor.v
-read -formal formal/tuple_extractor/tuple_extractor_props.sv
+read -formal tuple_extractor.v
+read -formal tuple_extractor_props.sv
 prep -top tuple_extractor_props
 
 [files]

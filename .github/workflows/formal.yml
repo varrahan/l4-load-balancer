@@ -2,12 +2,12 @@ name: Formal Verification
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main", "master" ]
     paths:
       - 'rtl/**'
       - 'formal/**'
   pull_request:
-    branches: [ main ]
+    branches: [ "main", "master" ]
     paths:
       - 'rtl/**'
       - 'formal/**'

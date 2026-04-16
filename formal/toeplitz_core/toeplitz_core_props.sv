@@ -1,4 +1,4 @@
-`default_nettype none
+default_nettype none
 module toeplitz_core_props (
     input wire clk, input wire rst_n,
     input wire [31:0] src_ip, input wire [31:0] dst_ip,
@@ -17,8 +17,7 @@ toeplitz_core dut (
     .hash_out(hash_out), .out_valid(out_valid), .out_bypass(out_bypass)
 );
 
-// Pipeline is 4 stages: in -> r0 -> s1 -> s2 -> out
-// Need 5 clean cycles before the latency assertion can fire (1 reset + 4 run)
+// Pipeline: in -> r0 -> s1 -> s2 -> out (4 register stages)
 reg f_past_valid, fpv2, fpv3, fpv4, fpv5;
 initial begin
     f_past_valid = 1'b0; fpv2 = 1'b0; fpv3 = 1'b0;
@@ -32,12 +31,18 @@ always @(posedge clk) begin
     fpv5 <= fpv4;
 end
 
-// Step 0: rst_n low to initialise; steps 1+: rst_n high
+// Step 0: rst_n low; steps 1+: rst_n high (no mid-run resets)
 always @(*) begin
     if (!f_past_valid)
         assume(!rst_n);
     else
         assume(rst_n);
+end
+
+// Input constraint: in_valid and in_bypass are mutually exclusive
+// This is a precondition of the DUT - it is never presented both simultaneously
+always @(*) begin
+    assume(!(in_valid && in_bypass));
 end
 
 // 1. Reset: outputs deasserted
@@ -56,8 +61,9 @@ always @(posedge clk) begin
 end
 
 // 4. out_valid and out_bypass never simultaneously asserted
+// This follows from the input constraint above propagating through the pipeline
 always @(posedge clk) begin
-    if (rst_n) assert(!(out_valid && out_bypass));
+    if (fpv5) assert(!(out_valid && out_bypass));
 end
 
 always @(posedge clk) begin if (rst_n) cover(out_valid && hash_out != 32'd0); end

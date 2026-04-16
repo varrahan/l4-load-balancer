@@ -25,8 +25,8 @@ jobs:
       # Replace the paths below with your actual design and testbench files
       - name: Compile Design and Testbench
         run: |
-          # Example: Compiling all source files in 'src' and testbenches in 'tb'
-          # iverilog -o simulation.vvp src/*.v tb/*.v
+          # Example: Compiling all source files in 'rtl' and testbenches in 'tb'
+          # iverilog -o simulation.vvp rtl/*.v tb/*.v
           
           # For a simple project, you might just do:
           iverilog -o simulation.vvp *.v
